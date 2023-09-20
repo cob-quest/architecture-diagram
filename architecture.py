@@ -1,54 +1,85 @@
 # diagram.py
 from diagrams import Diagram, Cluster
-from diagrams.aws.compute import EC2,ElasticKubernetesService
+from diagrams.aws.compute import ElasticKubernetesService
 from diagrams.aws.database import RDS
-from diagrams.aws.network import ELB, APIGateway
+from diagrams.aws.network import ELB, ALB, Route53
 from diagrams.aws.network import VPC
 from diagrams.onprem.iac import Terraform
 from diagrams.onprem.ci import GitlabCI
 from diagrams.aws.storage import S3
-
+from diagrams.custom import Custom
 # from diagrams.aws.mobile import Amplify
-from diagrams.k8s.network import Service
+from diagrams.k8s.network import Service, Ing
 
 
 
-with Diagram("architecture", show=True, direction="TB"):
+
+with Diagram("architecture", show=False, direction="TB"):
     ci_pipeline = GitlabCI("CI pipeline")
     container_registry = GitlabCI("Gitlab Container Registry")
     terraform_repo = Terraform("Infra as code")
     remote_state = S3("Remote state")
+    users = Custom("Users","custom/users.png") 
+
+    with Cluster("AWS Cloud"):
+
+        r53 = Route53("DNS")
+        with Cluster("AWS VPC"):
+
+            alb = ALB("Application LoadBalancer")
+            elb = ELB("Elastic LoadBalancer")
+            eks = ElasticKubernetesService("EKS")
+            # with Cluster("Public Subnet"):
+
+            with Cluster("Private Subnet"):
+                for i in range(1,4):
+                    with Cluster("Subnet {}".format(i)):
+                        rds = RDS("database") 
 
 
+                        with Cluster("EKS Platform Node {}".format(i)):
+                            platform_ingress = Ing("k8 ingress")
+                            
+                            
+                            with Cluster("DNS Service"):
+                                external_dns = Service("External DNS")
+                            with Cluster("Frontend Services"):
+                                auth_service = Service("authsvc")
+                                frontend_service = Service("frontend")
+                            
+                            with Cluster("Backend Services"):
+                                rest_backend_service = Service("Rest Backend")
+                            
+                            ## Connections
+                            frontend_service - rest_backend_service  >> rds
+                            rest_backend_service - auth_service >> rds
+                            platform_ingress >> frontend_service
+                            alb >> platform_ingress
 
-    with Cluster("AWS VPC"):
-
-        api_gw = APIGateway("Api Gateway")
-        eks = ElasticKubernetesService("EKS")
-        for i in range(1,4):
-            with Cluster("Private Subnet" + str(i)):
-
-                with Cluster("EKS Cluster" + str(i)):
-
-                    with Cluster("Frontend Services"+str(i)):
-                        auth_service = Service("authsvc"+str(i))
-                        frontend_service = Service("frontend"+str(i))
-                        frontend_service - auth_service 
-                    
-                    with Cluster("Backend Services"+str(i)):
-                        grading_service = Service("gradesvc"+str(i))
-                        deployment_service = Service("deploymentsvc"+str(i))
-            
-
-                rds = RDS("database") 
-
+                            
 
 
-                api_gw >> frontend_service
+                        with Cluster("EKS Assignment Node {}".format(i)):
+                            assignment_ingress = Ing("k8 ingress")
 
-            
-            grading_service >> rds
-            frontend_service >> rds
-            auth_service >> rds
+                            with Cluster("DNS Service"):
+                                external_dns = Service("External DNS")
+                            with Cluster("Backend Services"):
+
+                                grading_service = Service("gradesvc")
+                                assignment_service = Service("assignmentsvc")
+
+                            ## Connections
+                            grading_service >> rds
+                            assignment_ingress >> assignment_service
+                            elb >> assignment_ingress
+
+
+        
+      
     container_registry >> eks
+    grading_service - assignment_service
     ci_pipeline - terraform_repo - remote_state
+    r53 >> alb
+    users >> r53
+    users >> elb
