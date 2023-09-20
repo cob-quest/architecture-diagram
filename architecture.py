@@ -2,7 +2,7 @@
 from diagrams import Diagram, Cluster
 from diagrams.aws.compute import ElasticKubernetesService
 from diagrams.aws.database import RDS
-from diagrams.aws.network import ELB, ALB, Route53
+from diagrams.aws.network import ELB, ALB, Route53, NATGateway
 from diagrams.aws.network import VPC
 from diagrams.onprem.iac import Terraform
 from diagrams.onprem.ci import GitlabCI
@@ -29,7 +29,13 @@ with Diagram("architecture", show=False, direction="TB"):
             alb = ALB("Application LoadBalancer")
             elb = ELB("Elastic LoadBalancer")
             eks = ElasticKubernetesService("EKS")
-            # with Cluster("Public Subnet"):
+            natgws = []
+            with Cluster("Public Subnet"):
+                for i in range(1,4):
+                    with Cluster("Subnet {}".format(i)):
+                        natgw = NATGateway("Nat GW")
+                        natgws.append(natgw)
+
 
             with Cluster("Private Subnet"):
                 for i in range(1,4):
@@ -54,7 +60,7 @@ with Diagram("architecture", show=False, direction="TB"):
                             frontend_service - rest_backend_service  >> rds
                             rest_backend_service - auth_service >> rds
                             platform_ingress >> frontend_service
-                            alb >> platform_ingress
+                            alb >> natgws[i-1] >> platform_ingress
 
                             
 
@@ -72,7 +78,7 @@ with Diagram("architecture", show=False, direction="TB"):
                             ## Connections
                             grading_service >> rds
                             assignment_ingress >> assignment_service
-                            elb >> assignment_ingress
+                            elb >> natgws[i-1] >> assignment_ingress
 
 
         
