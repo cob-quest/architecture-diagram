@@ -86,7 +86,7 @@ with Diagram("architecture", show=False, direction="TB"):
                             # process_engine_service - auth_service >> rds
                             platform_ingress >> frontend_service
                             alb >> natgws[i-1] >> platform_ingress
-                            container_registry - image_builder_service
+                            container_registry - image_builder_service >> rds
                             process_engine_service >> image_builder_service
                             process_engine_service >> grading_service
         
